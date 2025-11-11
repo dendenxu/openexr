@@ -229,13 +229,16 @@ PyFile::PyFile(const std::string& filename, bool separate_channels, bool header_
             auto type = header.type();
             try
             {
-                if (type == SCANLINEIMAGE || type == TILEDIMAGE)
                 {
-                    P.readPixels(*_inputFile, header.channels(), shape, rgbaChannels, dw, separate_channels);
-                }
-                else if (type == DEEPSCANLINE || type == DEEPTILE)
-                {
-                    P.readDeepPixels(*_inputFile, type, header.channels(), shape, rgbaChannels, dw, separate_channels);
+                    py::gil_scoped_release release_gil;
+                    if (type == SCANLINEIMAGE || type == TILEDIMAGE)
+                    {
+                        P.readPixels(*_inputFile, header.channels(), shape, rgbaChannels, dw, separate_channels);
+                    }
+                    else if (type == DEEPSCANLINE || type == DEEPTILE)
+                    {
+                        P.readDeepPixels(*_inputFile, type, header.channels(), shape, rgbaChannels, dw, separate_channels);
+                    }
                 }
                 parts.append(py::cast<PyPart>(PyPart(P)));
             }
@@ -1236,29 +1239,32 @@ write_parts:
             const Header& h    = _inputFile->header (p);
             const string& type = h.type ();
 
-            if (type == SCANLINEIMAGE)
             {
-                InputPart  inPart (*_inputFile, p);
-                OutputPart outPart (*_outputFile, p);
-                outPart.copyPixels (inPart);
-            }
-            else if (type == TILEDIMAGE)
-            {
-                TiledInputPart  inPart (*_inputFile, p);
-                TiledOutputPart outPart (*_outputFile, p);
-                outPart.copyPixels (inPart);
-            }
-            else if (type == DEEPSCANLINE)
-            {
-                DeepScanLineInputPart  inPart (*_inputFile, p);
-                DeepScanLineOutputPart outPart (*_outputFile, p);
-                outPart.copyPixels (inPart);
-            }
-            else if (type == DEEPTILE)
-            {
-                DeepTiledInputPart  inPart (*_inputFile, p);
-                DeepTiledOutputPart outPart (*_outputFile, p);
-                outPart.copyPixels (inPart);
+                py::gil_scoped_release release_gil;
+                if (type == SCANLINEIMAGE)
+                {
+                    InputPart  inPart (*_inputFile, p);
+                    OutputPart outPart (*_outputFile, p);
+                    outPart.copyPixels (inPart);
+                }
+                else if (type == TILEDIMAGE)
+                {
+                    TiledInputPart  inPart (*_inputFile, p);
+                    TiledOutputPart outPart (*_outputFile, p);
+                    outPart.copyPixels (inPart);
+                }
+                else if (type == DEEPSCANLINE)
+                {
+                    DeepScanLineInputPart  inPart (*_inputFile, p);
+                    DeepScanLineOutputPart outPart (*_outputFile, p);
+                    outPart.copyPixels (inPart);
+                }
+                else if (type == DEEPTILE)
+                {
+                    DeepTiledInputPart  inPart (*_inputFile, p);
+                    DeepTiledOutputPart outPart (*_outputFile, p);
+                    outPart.copyPixels (inPart);
+                }
             }
         }
     }
@@ -1287,19 +1293,21 @@ write_parts:
 
             auto header = headers[part_index];
             const Box2i& dw = header.dataWindow();
-
-            if (P.type() == EXR_STORAGE_SCANLINE ||
-                P.type() == EXR_STORAGE_TILED)
             {
-                P.writePixels(*_outputFile, dw);
+                py::gil_scoped_release release_gil;
+                if (P.type() == EXR_STORAGE_SCANLINE ||
+                    P.type() == EXR_STORAGE_TILED)
+                {
+                    P.writePixels(*_outputFile, dw);
+                }
+                else if (P.type() == EXR_STORAGE_DEEP_SCANLINE ||
+                         P.type() == EXR_STORAGE_DEEP_TILED)
+                {
+                    P.writeDeepPixels(*_outputFile, dw);
+                }
+                else
+                    throw std::runtime_error("invalid type");
             }
-            else if (P.type() == EXR_STORAGE_DEEP_SCANLINE ||
-                     P.type() == EXR_STORAGE_DEEP_TILED)
-            {
-                P.writeDeepPixels(*_outputFile, dw);
-            }
-            else
-                throw std::runtime_error("invalid type");
         }
     }
     

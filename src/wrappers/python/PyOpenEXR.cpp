@@ -229,16 +229,13 @@ PyFile::PyFile(const std::string& filename, bool separate_channels, bool header_
             auto type = header.type();
             try
             {
+                if (type == SCANLINEIMAGE || type == TILEDIMAGE)
                 {
-                    py::gil_scoped_release release_gil;
-                    if (type == SCANLINEIMAGE || type == TILEDIMAGE)
-                    {
-                        P.readPixels(*_inputFile, header.channels(), shape, rgbaChannels, dw, separate_channels);
-                    }
-                    else if (type == DEEPSCANLINE || type == DEEPTILE)
-                    {
-                        P.readDeepPixels(*_inputFile, type, header.channels(), shape, rgbaChannels, dw, separate_channels);
-                    }
+                    P.readPixels(*_inputFile, header.channels(), shape, rgbaChannels, dw, separate_channels);
+                }
+                else if (type == DEEPSCANLINE || type == DEEPTILE)
+                {
+                    P.readDeepPixels(*_inputFile, type, header.channels(), shape, rgbaChannels, dw, separate_channels);
                 }
                 parts.append(py::cast<PyPart>(PyPart(P)));
             }
@@ -372,7 +369,10 @@ PyPart::readPixels(MultiPartInputFile& infile, const ChannelList& channel_list,
     InputPart part (infile, part_index);
 
     part.setFrameBuffer (frameBuffer);
-    part.readPixels (dw.min.y, dw.max.y);
+    {
+        py::gil_scoped_release release_gil;
+        part.readPixels (dw.min.y, dw.max.y);
+    }
 }
 
 void
@@ -619,7 +619,10 @@ PyPart::readDeepPixels(MultiPartInputFile& infile, const std::string& type, cons
 
         setDeepSliceData(channel_list, height, width, sliceDataMap, rgbaChannelMap, sampleCount);
 
-        part.readPixels (dw.min.y, dw.max.y);
+        {
+            py::gil_scoped_release release_gil;
+            part.readPixels (dw.min.y, dw.max.y);
+        }
     }
     else if (type == DEEPTILE)
     {
@@ -633,7 +636,10 @@ PyPart::readDeepPixels(MultiPartInputFile& infile, const std::string& type, cons
 
         setDeepSliceData(channel_list, height, width, sliceDataMap, rgbaChannelMap, sampleCount);
 
-        part.readTiles (0, numXTiles - 1, 0, numYTiles - 1);
+        {
+            py::gil_scoped_release release_gil;
+            part.readTiles (0, numXTiles - 1, 0, numYTiles - 1);
+        }
     }
 }
 
@@ -718,14 +724,20 @@ PyPart::writePixels(MultiPartOutputFile& outfile, const Box2i& dw) const
     {
         OutputPart part(outfile, part_index);
         part.setFrameBuffer (frameBuffer);
-        part.writePixels (height());
+        {
+            py::gil_scoped_release release_gil;
+            part.writePixels (height());
+        }
         part.deleteFile(outfile, part_index);
     }
     else
     {
         TiledOutputPart part(outfile, part_index);
         part.setFrameBuffer (frameBuffer);
-        part.writeTiles (0, part.numXTiles() - 1, 0, part.numYTiles() - 1);
+        {
+            py::gil_scoped_release release_gil;
+            part.writeTiles (0, part.numXTiles() - 1, 0, part.numYTiles() - 1);
+        }
         part.deleteFile(outfile, part_index);
     }
 }
@@ -915,16 +927,22 @@ PyPart::writeDeepPixels(MultiPartOutputFile& outfile, const Box2i& dw) const
     {
         DeepScanLineOutputPart part(outfile, part_index);
         part.setFrameBuffer (frameBuffer);
-        part.writePixels (height);
+        {
+            py::gil_scoped_release release_gil;
+            part.writePixels (height);
+        }
     }
     else 
     {
         DeepTiledOutputPart part(outfile, part_index);
         part.setFrameBuffer (frameBuffer);
 
-        for (int y = 0; y < part.numYTiles (0); y++)
-            for (int x = 0; x < part.numXTiles (0); x++)
-                part.writeTile (x, y, 0);
+        {
+            py::gil_scoped_release release_gil;
+            for (int y = 0; y < part.numYTiles (0); y++)
+                for (int x = 0; x < part.numXTiles (0); x++)
+                    part.writeTile (x, y, 0);
+        }
     }
 }
 
@@ -1293,21 +1311,20 @@ write_parts:
 
             auto header = headers[part_index];
             const Box2i& dw = header.dataWindow();
+
+            if (P.type() == EXR_STORAGE_SCANLINE ||
+                P.type() == EXR_STORAGE_TILED)
             {
-                py::gil_scoped_release release_gil;
-                if (P.type() == EXR_STORAGE_SCANLINE ||
-                    P.type() == EXR_STORAGE_TILED)
-                {
-                    P.writePixels(*_outputFile, dw);
-                }
-                else if (P.type() == EXR_STORAGE_DEEP_SCANLINE ||
-                         P.type() == EXR_STORAGE_DEEP_TILED)
-                {
-                    P.writeDeepPixels(*_outputFile, dw);
-                }
-                else
-                    throw std::runtime_error("invalid type");
+                P.writePixels(*_outputFile, dw);
             }
+            else if (P.type() == EXR_STORAGE_DEEP_SCANLINE ||
+                        P.type() == EXR_STORAGE_DEEP_TILED)
+            {
+                P.writeDeepPixels(*_outputFile, dw);
+            }
+            else
+                throw std::runtime_error("invalid type");
+
         }
     }
     

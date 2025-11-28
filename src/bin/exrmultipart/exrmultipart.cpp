@@ -224,7 +224,8 @@ convert (
     vector<const char*> in,
     vector<const char*> views,
     const char*         outname,
-    bool                override)
+    bool                override,
+    bool                verbose)
 {
     if (in.size () != 1)
         throw invalid_argument (
@@ -373,7 +374,8 @@ combine (
     vector<const char*> in,
     vector<const char*> views,
     const char*         outname,
-    bool                override)
+    bool                override,
+    bool                verbose)
 {
     size_t                      numInputs = in.size ();
     int                         numparts;
@@ -473,26 +475,34 @@ combine (
         std::string type = headers[p].type ();
         if (type == SCANLINEIMAGE)
         {
-            cout << "part " << p << ": "
-                 << "scanlineimage" << endl;
+            if (verbose) {
+                cout << "part " << p << ": "
+                     << "scanlineimage" << endl;
+            }
             copy_scanline (*inputs[p], out, partnums[p], p);
         }
         else if (type == TILEDIMAGE)
         {
-            cout << "part " << p << ": "
-                 << "tiledimage" << endl;
+            if (verbose) {
+                cout << "part " << p << ": "
+                     << "tiledimage" << endl;
+            }
             copy_tile (*inputs[p], out, partnums[p], p);
         }
         else if (type == DEEPSCANLINE)
         {
-            cout << "part " << p << ": "
-                 << "deepscanlineimage" << endl;
+            if (verbose) {
+                cout << "part " << p << ": "
+                     << "deepscanlineimage" << endl;
+            }
             copy_scanlinedeep (*inputs[p], out, partnums[p], p);
         }
         else if (type == DEEPTILE)
         {
-            cout << "part " << p << ": "
-                 << "deeptile" << endl;
+            if (verbose) {
+                cout << "part " << p << ": "
+                     << "deeptile" << endl;
+            }
             copy_tiledeep (*inputs[p], out, partnums[p], p);
         }
     }
@@ -503,13 +513,14 @@ combine (
     }
 
     inputs.clear ();
-
-    cout << "\n"
-         << "Combine Success" << endl;
+    if (verbose) {
+        cout << "\n"
+             << "Combine Success" << endl;
+    }
 }
 
 void
-separate (vector<const char*> in, const char* out, bool override)
+separate (vector<const char*> in, const char* out, bool override, bool verbose)
 {
     if (in.size () > 1)
         throw invalid_argument ("-separate only take one input file");
@@ -527,7 +538,9 @@ separate (vector<const char*> in, const char* out, bool override)
 
     inputimage = new MultiPartInputFile (filename.c_str ());
     numOutputs = inputimage->parts ();
-    cout << "numOutputs: " << numOutputs << endl;
+    if (verbose) {
+        cout << "numOutputs: " << numOutputs << endl;
+    }
 
     //
     // set outputs names
@@ -541,7 +554,9 @@ separate (vector<const char*> in, const char* out, bool override)
         oss << '.' << p + 1;
         outfilename += oss.str ();
         outfilename += ".exr";
-        cout << "outputfilename: " << outfilename << endl;
+        if (verbose) {
+            cout << "outputfilename: " << outfilename << endl;
+        }
         fornamecheck.push_back (outfilename);
     }
 
@@ -560,29 +575,39 @@ separate (vector<const char*> in, const char* out, bool override)
         std::string type = header.type ();
         if (type == "scanlineimage")
         {
-            cout << "scanlineimage" << endl;
+            if (verbose) {
+                cout << "scanlineimage" << endl;
+            }
             copy_scanline (*inputimage, out, p, 0);
         }
         else if (type == "tiledimage")
         {
-            cout << "tiledimage" << endl;
+            if (verbose) {
+                cout << "tiledimage" << endl;
+            }
             copy_tile (*inputimage, out, p, 0);
         }
         else if (type == "deepscanline")
         {
-            cout << "deepscanline" << endl;
+            if (verbose) {
+                cout << "deepscanline" << endl;
+            }
             copy_scanlinedeep (*inputimage, out, p, 0);
         }
         else if (type == "deeptile")
         {
-            cout << "deeptile" << endl;
+            if (verbose) {
+                cout << "deeptile" << endl;
+            }
             copy_tiledeep (*inputimage, out, p, 0);
         }
     }
 
     delete inputimage;
-    cout << "\n"
+    if (verbose) {
+        cout << "\n"
          << "Separate Success" << endl;
+    }
 }
 
 void
@@ -625,6 +650,7 @@ main (int argc, char* argv[])
         const char*         view     = 0;
         const char*         outFile  = 0;
         bool                override = false;
+        bool                verbose = false;
 
         int i = 1;
         int mode =
@@ -650,6 +676,12 @@ main (int argc, char* argv[])
                      << endl;
                 cout << "License BSD-3-Clause" << endl;
                 return 0;
+            }
+
+            if (!strcmp (argv[i], "--verbose")) 
+            {
+                verbose = true;
+                continue;
             }
 
             if (!strcmp (argv[i], "-i")) { mode = 1; }
@@ -687,35 +719,44 @@ main (int argc, char* argv[])
             return 1;
         }
 
-        cout << "input:" << endl;
-        for (size_t i = 0; i < inFiles.size (); i++)
-        {
-            cout << "      " << inFiles[i];
-            if (views[i]) cout << " in view " << views[i];
-            cout << endl;
+        if (verbose) {
+            cout << "input:" << endl;
+            for (size_t i = 0; i < inFiles.size (); i++)
+            {
+                cout << "      " << inFiles[i];
+                if (views[i]) cout << " in view " << views[i];
+                cout << endl;
+            }
         }
 
         if (!outFile) throw invalid_argument ("No output file specified");
-
-        cout << "output:\n      " << outFile << endl;
-        cout << "override:" << override << "\n" << endl;
+        if (verbose) {
+            cout << "output:\n      " << outFile << endl;
+            cout << "override:" << override << "\n" << endl;
+        }
 
         if (!strcmp (argv[1], "-combine"))
         {
-            cout << "-combine multipart input " << endl;
-            combine (inFiles, views, outFile, override);
+            if (verbose) {
+                cout << "-combine multipart input " << endl;
+            }
+            combine (inFiles, views, outFile, override, verbose);
         }
         else if (!strcmp (argv[1], "-separate"))
         {
-            cout << "-separate multipart input " << endl;
-            separate (inFiles, outFile, override);
+            if (verbose) {
+                cout << "-separate multipart input " << endl;
+            }
+            separate (inFiles, outFile, override, verbose);
         }
         else if (!strcmp (argv[1], "-convert"))
         {
-            cout << "-convert input to EXR2 multipart" << endl;
-            convert (inFiles, views, outFile, override);
+            if (verbose) {
+                cout << "-convert input to EXR2 multipart" << endl;
+            }
+            convert (inFiles, views, outFile, override, verbose);
         }
-        else { usageMessage (cerr, argv[0], false); }
+        else { usageMessage (cerr, argv[0], false, verbose); }
     }
     catch (const exception& e)
     {

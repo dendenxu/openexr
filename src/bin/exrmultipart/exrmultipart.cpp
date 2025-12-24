@@ -756,7 +756,7 @@ main (int argc, char* argv[])
             }
             convert (inFiles, views, outFile, override, verbose);
         }
-        else { usageMessage (cerr, argv[0], false, verbose); }
+        else { usageMessage (cerr, argv[0], false); }
     }
     catch (const exception& e)
     {
